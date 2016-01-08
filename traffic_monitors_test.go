@@ -24,22 +24,28 @@ var _ = Describe(`SummaryStatsTrafficMonitor`, func() {
 			currentTime := time.Now()
 			events = []Event{
 				{
-					Host:        `example.com`,
-					Path:        `/pages/reports`,
+					Path:        `/section1/page1`,
 					PayloadSize: 20,
 					Time:        currentTime,
+					StatusCode:  200,
 				},
 				{
-					Host:        `example.com`,
-					Path:        `/pages/orders`,
+					Path:        `/section1/page2`,
 					PayloadSize: 10,
 					Time:        currentTime.Add(1 * time.Second),
+					StatusCode:  301,
 				},
 				{
-					Host:        `example2.com`,
-					Path:        `/pages/items`,
+					Path:        `/section1/page1`,
+					PayloadSize: 10,
+					Time:        currentTime.Add(1 * time.Second),
+					StatusCode:  404,
+				},
+				{
+					Path:        `/section2/page1`,
 					PayloadSize: 30,
 					Time:        currentTime.Add(2 * time.Second),
+					StatusCode:  201,
 				},
 			}
 		})
@@ -51,17 +57,40 @@ var _ = Describe(`SummaryStatsTrafficMonitor`, func() {
 		})
 
 		It(`calculates the summary statistics`, func() {
-			destination1TotalPayloadSize := events[0].PayloadSize + events[1].PayloadSize
-			destination1AvgPayloadSize := float64(destination1TotalPayloadSize) / 2
+			// calculate section 1 statistics
+			section1TotalPayloadSize := events[0].PayloadSize + events[1].PayloadSize + events[2].PayloadSize
+			section1AvgPayloadSize := float64(section1TotalPayloadSize) / 3.0
+			section1Successes := 1
+			section1Redirects := 1
+			section1ClientFailures := 1
+			section1ServerFailures := 0
 
-			destination2TotalPayloadSize := events[2].PayloadSize
-			destination2AvgPayloadSize := float64(destination2TotalPayloadSize) / 1
+			// calculate section 2 statistics
+			section2TotalPayloadSize := events[3].PayloadSize
+			section2AvgPayloadSize := float64(section2TotalPayloadSize) / 1.0
+			section2Successes := 1
+			section2Redirects := 0
+			section2ClientFailures := 0
+			section2ServerFailures := 0
 
-			statisticsFormat := "Section: %s\nAverage Payload: %f\nTotal Payload: %d\nCount: %d\n"
+			// calculate total traffic statistics
+			totalPayloadSize := events[0].PayloadSize + events[1].PayloadSize + events[2].PayloadSize + events[3].PayloadSize
+			avgTotalPayloadSize := float64(totalPayloadSize) / 4.0
+			totalSuccesses := 2
+			totalClientFailures := 1
+			totalServerFailures := 0
+			totalRedirects := 1
 
 			Eventually(func() string { return notification.message }, 2*time.Second, 500*time.Millisecond).Should(And(
-				ContainSubstring(fmt.Sprintf(statisticsFormat, "example.com", destination1AvgPayloadSize, destination1TotalPayloadSize, 2)),
-				ContainSubstring(fmt.Sprintf(statisticsFormat, "example2.com", destination2AvgPayloadSize, destination2TotalPayloadSize, 1)),
+				ContainSubstring(fmt.Sprintf(
+					SummaryStatisticsFormat, "/section1", section1AvgPayloadSize, section1TotalPayloadSize, section1Successes, section1Redirects, section1ClientFailures, section1ServerFailures, 3,
+				)),
+				ContainSubstring(fmt.Sprintf(
+					SummaryStatisticsFormat, "/section2", section2AvgPayloadSize, section2TotalPayloadSize, section2Successes, section2Redirects, section2ClientFailures, section2ServerFailures, 1),
+				),
+				ContainSubstring(
+					fmt.Sprintf(SummaryStatisticsFormat, "Total Traffic", avgTotalPayloadSize, totalPayloadSize, totalSuccesses, totalRedirects, totalClientFailures, totalServerFailures, 4),
+				),
 			))
 		})
 	})

@@ -2,9 +2,21 @@ package main
 
 import (
 	"fmt"
+	"net/url"
 	"strings"
 	"time"
 )
+
+const SummaryStatisticsFormat = `
+Section: %s
+Average Payload: %f
+Total Payload: %d
+Successes: %d
+Redirects: %d
+Client Failures: %d
+Server Failures: %d
+Count: %d
+`
 
 type TrafficMonitor interface {
 	Monitor(Event)
@@ -15,12 +27,25 @@ type TrafficStatistics struct {
 	Section            string
 	AveragePayloadSize float64
 	TotalPayloadSize   int64
+	Successes          int
+	Redirects          int
+	ClientFailures     int
+	ServerFailures     int
 	Count              int64
 }
 
 func (t *TrafficStatistics) String() string {
-	statisticsFormat := "Section: %s\nAverage Payload: %f\nTotal Payload: %d\nCount: %d\n"
-	return fmt.Sprintf(statisticsFormat, t.Section, t.AveragePayloadSize, t.TotalPayloadSize, t.Count)
+	return fmt.Sprintf(
+		SummaryStatisticsFormat,
+		t.Section,
+		t.AveragePayloadSize,
+		t.TotalPayloadSize,
+		t.Successes,
+		t.Redirects,
+		t.ClientFailures,
+		t.ServerFailures,
+		t.Count,
+	)
 }
 
 type SummaryStatsTrafficMonitor struct {
@@ -30,7 +55,7 @@ type SummaryStatsTrafficMonitor struct {
 	ticker *time.Ticker
 	events chan Event
 
-	statistics map[string]TrafficStatistics
+	statistics map[string]*TrafficStatistics
 }
 
 func NewSummaryStatsTrafficMonitor(duration time.Duration, notification Notification) *SummaryStatsTrafficMonitor {
@@ -38,8 +63,7 @@ func NewSummaryStatsTrafficMonitor(duration time.Duration, notification Notifica
 		duration:     duration,
 		notification: notification,
 		events:       make(chan Event),
-
-		statistics: map[string]TrafficStatistics{},
+		statistics:   map[string]*TrafficStatistics{},
 	}
 	go monitor.consumeEvents()
 	go monitor.publishStatistics()
@@ -71,26 +95,46 @@ func (s *SummaryStatsTrafficMonitor) publishStatistics() {
 		if s.summary() != "" {
 			s.notification.Send(s.summary())
 		}
-		s.statistics = map[string]TrafficStatistics{}
+		s.statistics = map[string]*TrafficStatistics{}
 	}
 }
 
 func (s *SummaryStatsTrafficMonitor) consumeEvents() {
 	for event := range s.events {
-		if statistic, ok := s.statistics[event.Host]; ok {
-			s.statistics[event.Host] = TrafficStatistics{
-				Section:            event.Host,
-				AveragePayloadSize: (statistic.AveragePayloadSize + float64(event.PayloadSize)) / float64((statistic.Count + 1)),
-				TotalPayloadSize:   statistic.TotalPayloadSize + int64(event.PayloadSize),
-				Count:              statistic.Count + 1,
-			}
-		} else {
-			s.statistics[event.Host] = TrafficStatistics{
-				Section:            event.Host,
-				AveragePayloadSize: float64(event.PayloadSize),
-				TotalPayloadSize:   int64(event.PayloadSize),
-				Count:              1,
-			}
+		eventURL, err := url.Parse(event.Path)
+		if err != nil {
+			continue
 		}
+		pathSections := strings.Split(eventURL.Path, "/")
+		if len(pathSections) >= 2 {
+			section := strings.Join(pathSections[0:2], "/")
+			s.updateStatistics(section, event)
+		}
+		s.updateTotalStatistics(event)
 	}
+}
+
+func (s *SummaryStatsTrafficMonitor) updateStatistics(section string, event Event) {
+	if _, ok := s.statistics[section]; !ok {
+		s.statistics[section] = &TrafficStatistics{Section: section}
+	}
+
+	sectionStatistics := s.statistics[section]
+	sectionStatistics.AveragePayloadSize = (float64(sectionStatistics.Count)*sectionStatistics.AveragePayloadSize + float64(event.PayloadSize)) / float64(sectionStatistics.Count+1)
+	sectionStatistics.TotalPayloadSize += int64(event.PayloadSize)
+	if event.StatusCode >= 200 && event.StatusCode < 300 {
+		sectionStatistics.Successes += 1
+	} else if event.StatusCode >= 300 && event.StatusCode < 400 {
+		sectionStatistics.Redirects += 1
+	} else if event.StatusCode >= 400 && event.StatusCode < 500 {
+		sectionStatistics.ClientFailures += 1
+	} else if event.StatusCode >= 500 {
+		sectionStatistics.ServerFailures += 1
+	}
+
+	sectionStatistics.Count += 1
+}
+
+func (s *SummaryStatsTrafficMonitor) updateTotalStatistics(event Event) {
+	s.updateStatistics("Total Traffic", event)
 }
