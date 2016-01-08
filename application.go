@@ -1,7 +1,5 @@
 package main
 
-import "fmt"
-
 type Application struct {
 	logReader      LogReader
 	trafficMonitor TrafficMonitor
@@ -18,7 +16,6 @@ func NewApplication(logReader LogReader, monitor TrafficMonitor, alert Alert) *A
 
 func (a *Application) Run() {
 	for event := range a.logReader.Read() {
-		fmt.Println(event)
 		a.trafficMonitor.Monitor(event)
 		a.alert.Check(event)
 	}
