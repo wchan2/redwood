@@ -24,10 +24,8 @@ sudo ./redwood
 Some flags that can be used to customize the application at runtime.
 
 ```
-# network flags
 - file - File name of the file to monitor, collect, and/or alert on traffic logs
-
-# monitoring and alerting flags
+	- default: access.log
 - monitor - Monitoring duration in seconds to which to send a summary
 	- default: 10
 - duration - Duration in seconds that
