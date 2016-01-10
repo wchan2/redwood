@@ -16,6 +16,7 @@ Redirects: %d
 Client Failures: %d
 Server Failures: %d
 Count: %d
+
 `
 
 type TrafficMonitor interface {

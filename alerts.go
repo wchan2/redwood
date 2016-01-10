@@ -30,10 +30,10 @@ func (t *TotalTrafficAlert) Check(event Event) {
 	t.add(event)
 
 	if t.isExceeded() && !t.alertTriggered {
-		t.notification.Send(fmt.Sprintf("High traffic generated an alert - hits = %d, triggered at %s", len(t.events), event.Time.String()))
+		t.notification.Send(fmt.Sprintf("High traffic generated an alert - hits = %d, triggered at %s\n", len(t.events), event.Time.String()))
 		t.alertTriggered = true
 	} else if !t.isExceeded() && t.alertTriggered {
-		reason := fmt.Sprintf("Traffic returned to normal, triggered at %s", event.Time.String())
+		reason := fmt.Sprintf("Traffic returned to normal, triggered at %s\n", event.Time.String())
 		t.notification.Send(reason)
 		t.alertTriggered = false
 	}
