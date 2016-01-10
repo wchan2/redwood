@@ -38,7 +38,7 @@ var _ = Describe(`TotalTrafficAlert`, func() {
 			})
 
 			It(`sends an alert message`, func() {
-				notificationMessage := fmt.Sprintf("High traffic generated an alert - hits = 2, triggered at %s", currentTime.String())
+				notificationMessage := fmt.Sprintf("High traffic generated an alert - hits = 2, triggered at %s\n", currentTime.String())
 				Expect(notification.message).To(Equal(notificationMessage))
 			})
 		})
@@ -80,7 +80,7 @@ var _ = Describe(`TotalTrafficAlert`, func() {
 			})
 
 			It(`sends a resolved message`, func() {
-				resolvedMessage := fmt.Sprintf("Traffic returned to normal, triggered at %s", currentTime.String())
+				resolvedMessage := fmt.Sprintf("Traffic returned to normal, triggered at %s\n", currentTime.String())
 				Expect(notification.message).To(Equal(resolvedMessage))
 			})
 		})
